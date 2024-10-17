@@ -92,4 +92,5 @@ driver function(input_file, header_file, umi_file):
                 pass
 ```
 
-This solution is very elegant but hinges upon the previous bash sorting to do so. Once we are working with the full dataset
+This solution is very elegant but hinges upon the previous bash sorting to do so.
+Once we are working with the full dataset we will see how effective it truly is.
