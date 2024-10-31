@@ -72,8 +72,11 @@ def determine_strand(bit_flag):
     """From a sam line, extract the bitscore and determine which strand our
     read lies on
     """
+    print(bit_flag)
     if((bit_flag & 4) != 4):
+            print("False")
             return False
+    print("true")
     return True
     #True if positive, False if negative strand
 
