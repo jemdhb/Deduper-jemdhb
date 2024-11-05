@@ -1,89 +1,106 @@
 #!/usr/bin/env python
+import re
+import argparse
+
+def get_args():
+    parser = argparse.ArgumentParser(description="Deduper")
+    parser.add_argument("-i", "--input_file",
+                     help="input file",
+                     required=True, type=str)
+    parser.add_argument("-o", "--output_file",
+                     help="output file",
+                     required=True, type=str)
+    parser.add_argument("-u", "--umi_file",
+                     help="output file",
+                     required=True, default="STL96.txt",type=str)
+    return parser.parse_args()
+
+args = get_args()
+outfile=args.output_file
+infile=args.input_file
+umifile=args.umi_file
+
 
 
 def get_umi_and_chrom(line):
     """From one line in our sam file, extract the UMI and Chromosome
     """
+    #split line on tab
     line_list=line.split("\t")
+    #on the first column grab the UMI by splitting on :
     umi=line_list[0].split(":")[-1].strip()
-    chrom=int(line_list[2].strip())
+    #chrom is just chilling on column 2 DONT TYPECAST
+    chrom=line_list[2].strip()
     return umi, chrom
 
-def fix_softclipping(cigar_string, start_position, plus_strand=True):
+def fix_softclipping(cigar_string:str, start_position:int, plus_strand=True):
     """On a line determined to have leftmost softclipping, use the CIGAR string and
     softclipped starting position to extract the true start position of our read.
-    """
-
-    try:
-        #no clipping, EASY
-        if "S" not in cigar_string:
-            return start_position
-        #only have to care about left soft clipping, EASY
-        elif plus_strand:
+    """   
+    #only have to care about left soft clipping, EASY
+    if plus_strand and cigar_string.split('S')[0].isdigit():
             left_clip=int(cigar_string.split("S")[0])
             return start_position-left_clip
-        #minus strand HARD
-        else:
-            return fix_minus_softclipping(cigar_string, start_position)
-           
-    except:
+    elif plus_strand:
         return start_position
+    #minus strand
+    else:
+        return fix_minus_softclipping(cigar_string, start_position)           
+    
         
-def fix_minus_softclipping(cigar_string, start_position):
-    #ensure there is right softclipping to resolve
-    mod_list=[]
-    num_list=[]
-    num=""
-    mod=""
-    for char in cigar_string:
-        try:
-            #build int until we reach a string
-            int(char)
-            num+=char
-        except:
-            #once we reach a string ie a sam mod, update the lists
-            mod=char
-            mod_list.append(mod)
-            num_list.append(int(num))
 
+def fix_minus_softclipping(cigar_string, start_position):
+    """Fix softclipping on the minus strand
+
+    Args:
+        cigar_string (str): string to obtain our true position
+        start_position (int): alignment start position before any adjustment
+
+    Returns:
+        int: our adjusted start position
+    """
+    #get cigar string formatted [(7,M),(21,S)]
+    matches = re.findall(r'(\d+)([A-Z]{1})', cigar_string)
+    #print(matches)
     first_item=True
-    for index,item in enumerate(mod_list):
-        match item:
-            case "I":
-                start_position=start_position-num_list[index]
+    #go through cigar alterations
+    for item in matches:
+        alteration_type=item[1]
+        position_change=int(item[0])
+        match alteration_type:
             case "D":
-                start_position=start_position+num_list[index]
-            #idk
+                start_position+=position_change
             case "N":
-                start_position=start_position+num_list[index]
+                start_position+=position_change
             case "S":
-                if first_item:
+                if not first_item:
+                    start_position+=position_change
+            #M/X/=
+            case "M":
+                start_position+=position_change
+        if first_item:
                     first_item=False
-                    continue
-                start_position=start_position+num_list[index]
-            #M
-            case _:
-                first_item=False
-                start_position=start_position+num_list[index]
-                continue
-    return start_position
+        
+    return start_position-1
 
 def determine_strand(bit_flag):
     """From a sam line, extract the bitscore and determine which strand our
     read lies on
     """
-    print(bit_flag)
-    if((bit_flag & 4) != 4):
-            print("False")
-            return False
-    print("true")
-    return True
+    if((bit_flag & 16) != 16):
+            return True
+    return False
     #True if positive, False if negative strand
 
-def dedupe(input_file, umi_file):
-    chrom=""
+def dedupe(input_file, output_file, umi_file):
+    num_chrom=0
+    wrong_UMIS=0
+    header_lines=0
+    num_dupes=0
+    num_unique=0
+    chrom="1"
     input_file=open(input_file,"r")
-    output_file=open("output.sam","w")
+    output_file=open(output_file,"w")
     #read in the set of provided UMIS
     all_umis=set(open(umi_file).read().split("\n"))
     plus_position_set=set()
@@ -93,53 +110,69 @@ def dedupe(input_file, umi_file):
         if line=="":
             break
         if "@" in line[0]:
+            header_lines+=1
             output_file.write(line)
             continue
         curr_bit_flag=int(line.split()[1])
+
         curr_cigar_string=line.split()[5]
-        curr_start_position=line.split()[3]
+
+        curr_start_position=int(line.split()[3])
+
         curr_UMI, curr_chrom = get_umi_and_chrom(line)
         plus_strand=determine_strand(curr_bit_flag)
         #if unknown UMI, trash
         if curr_UMI not in all_umis:
+            wrong_UMIS+=1
             continue
         #if you have to update anything, clear the positions
         if curr_chrom!=chrom:
+            print("Chromosome ",chrom," ",num_chrom)
+            num_chrom=0
             chrom=curr_chrom
             plus_position_set=set()
             minus_position_set=set()    
         #check existance of this position in the set, only by strand
         #+
         if plus_strand:
-            adjusted_position=fix_softclipping(curr_cigar_string,line.split()[3])
+            adjusted_position=fix_softclipping(curr_cigar_string,curr_start_position, True)
             #if a new read
+            #print(plus_position_set)
             #print((adjusted_position, curr_UMI))
-            print(plus_position_set)
             if (adjusted_position, curr_UMI) not in plus_position_set:
+                num_chrom+=1
                 #add to set
                 plus_position_set.add((adjusted_position,curr_UMI))
+                num_unique+=1
                 #write to file
                 output_file.write(line)
             else:
+                num_dupes+=1
                 #discard read, its a dupe
                 continue
         #-
         else:
             adjusted_position=fix_softclipping(curr_cigar_string,curr_start_position,False)
-
             #print((adjusted_position, curr_UMI))
-            print(minus_position_set)
+            #print(minus_position_set)
             #if a new read
             if (adjusted_position, curr_UMI) not in minus_position_set:
+                num_chrom+=1
+                num_unique+=1
                 #add to set
                 minus_position_set.add((adjusted_position,curr_UMI))
                 #write to line
                 output_file.write(line)
             else:
+                num_dupes+=1
                 #discard read, its a dupe   
                 pass
+    print("The number of header lines is", header_lines)
+    print("The number of wrong UMIS is", wrong_UMIS)
+    print("The number of unique reads is", num_unique)
+    print("The number of dupe reads is", num_dupes)
 
-dedupe("unit_tests/mini_test_input.sam","STL96.txt")
 
+dedupe(infile, outfile, umifile)
 
 #N treat the same as a deletion mathematically
