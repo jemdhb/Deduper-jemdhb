@@ -3,26 +3,19 @@ import re
 import argparse
 
 def get_args():
-    parser = argparse.ArgumentParser(description="Deduper")
+    parser = argparse.ArgumentParser(description="Using an input sam and UMI file, remove PCR duplicates writing them to a new output sam file.")
     parser.add_argument("-i", "--input_file",
-                     help="input file",
+                     help="Path to input sam file.",
                      required=True, type=str)
     parser.add_argument("-o", "--output_file",
-                     help="output file",
+                     help="Path to output sam file with our PCR duplicates removed.",
                      required=True, type=str)
     parser.add_argument("-u", "--umi_file",
-                     help="output file",
+                     help="Path to file containing all possible valid UMIs.",
                      required=True, default="STL96.txt",type=str)
     return parser.parse_args()
 
-args = get_args()
-outfile=args.output_file
-infile=args.input_file
-umifile=args.umi_file
-
-
-
-def get_umi_and_chrom(line):
+def get_umi_and_chrom(line: str)->tuple:
     """From one line in our sam file, extract the UMI and Chromosome
     """
     #split line on tab
@@ -33,14 +26,24 @@ def get_umi_and_chrom(line):
     chrom=line_list[2].strip()
     return umi, chrom
 
-def fix_softclipping(cigar_string:str, start_position:int, plus_strand=True):
+def fix_softclipping(cigar_string:str, start_position:int, plus_strand=True)->int:
     """On a line determined to have leftmost softclipping, use the CIGAR string and
     softclipped starting position to extract the true start position of our read.
-    """   
-    #only have to care about left soft clipping, EASY
+
+    Args:
+        cigar_string (str): str of alignment operations to determine position
+        start_position (int): int start position not encountering for a cigar str
+        plus_strand (bool, optional): Determines which clipping function to use.
+
+    Returns:
+        int: _description_
+    """
+    #plus strand with left softclipping
     if plus_strand and cigar_string.split('S')[0].isdigit():
             left_clip=int(cigar_string.split("S")[0])
+            #NO -1 needed
             return start_position-left_clip
+    #plus strand with no clipping do nothing
     elif plus_strand:
         return start_position
     #minus strand
@@ -49,7 +52,7 @@ def fix_softclipping(cigar_string:str, start_position:int, plus_strand=True):
     
         
 
-def fix_minus_softclipping(cigar_string, start_position):
+def fix_minus_softclipping(cigar_string:str, start_position:int)->int:
     """Fix softclipping on the minus strand
 
     Args:
@@ -61,7 +64,6 @@ def fix_minus_softclipping(cigar_string, start_position):
     """
     #get cigar string formatted [(7,M),(21,S)]
     matches = re.findall(r'(\d+)([A-Z]{1})', cigar_string)
-    #print(matches)
     first_item=True
     #go through cigar alterations
     for item in matches:
@@ -83,7 +85,7 @@ def fix_minus_softclipping(cigar_string, start_position):
         
     return start_position-1
 
-def determine_strand(bit_flag):
+def determine_strand(bit_flag:int)->bool:
     """From a sam line, extract the bitscore and determine which strand our
     read lies on
     """
@@ -93,52 +95,66 @@ def determine_strand(bit_flag):
     #True if positive, False if negative strand
 
 def dedupe(input_file, output_file, umi_file):
+    """given and input and umi file, find and remove PCR duplicates
+
+    Args:
+        input_file (str): path to input file
+        output_file (str): path to output file
+        umi_file (str): path to UMI file
+    """
     num_chrom=0
     wrong_UMIS=0
     header_lines=0
     num_dupes=0
     num_unique=0
+    #so we dont print the first line as a new chromosome
     chrom="1"
     input_file=open(input_file,"r")
     output_file=open(output_file,"w")
+    STATS_FILE=open(outfile[:outfile.rfind(".")]+"_stats.txt","w")
+
     #read in the set of provided UMIS
     all_umis=set(open(umi_file).read().split("\n"))
     plus_position_set=set()
     minus_position_set=set()
+
     #read through input_file
     for line in input_file:
+        #EOF do nothing
         if line=="":
             break
+        #header, write and continue
         if "@" in line[0]:
             header_lines+=1
             output_file.write(line)
             continue
+
+        #get variables of interest 
         curr_bit_flag=int(line.split()[1])
-
         curr_cigar_string=line.split()[5]
-
         curr_start_position=int(line.split()[3])
-
         curr_UMI, curr_chrom = get_umi_and_chrom(line)
         plus_strand=determine_strand(curr_bit_flag)
+
         #if unknown UMI, trash
         if curr_UMI not in all_umis:
             wrong_UMIS+=1
             continue
+
         #if you have to update anything, clear the positions
         if curr_chrom!=chrom:
-            print("Chromosome ",chrom," ",num_chrom)
+            #CHROMOSOME STRATS
+            STATS_FILE.write(f"{chrom}\t{num_chrom}\n")
             num_chrom=0
             chrom=curr_chrom
             plus_position_set=set()
-            minus_position_set=set()    
+            minus_position_set=set()
+    
         #check existance of this position in the set, only by strand
         #+
         if plus_strand:
             adjusted_position=fix_softclipping(curr_cigar_string,curr_start_position, True)
             #if a new read
-            #print(plus_position_set)
-            #print((adjusted_position, curr_UMI))
             if (adjusted_position, curr_UMI) not in plus_position_set:
                 num_chrom+=1
                 #add to set
@@ -153,8 +169,6 @@ def dedupe(input_file, output_file, umi_file):
         #-
         else:
             adjusted_position=fix_softclipping(curr_cigar_string,curr_start_position,False)
-            #print((adjusted_position, curr_UMI))
-            #print(minus_position_set)
             #if a new read
             if (adjusted_position, curr_UMI) not in minus_position_set:
                 num_chrom+=1
@@ -167,12 +181,20 @@ def dedupe(input_file, output_file, umi_file):
                 num_dupes+=1
                 #discard read, its a dupe   
                 pass
-    print("The number of header lines is", header_lines)
-    print("The number of wrong UMIS is", wrong_UMIS)
-    print("The number of unique reads is", num_unique)
-    print("The number of dupe reads is", num_dupes)
+    #STATS
+    STATS_FILE.write(f"The number of header lines is: {header_lines}\n")
+    STATS_FILE.write(f"The number of wrong UMIS is: {wrong_UMIS}\n")
+    STATS_FILE.write(f"The number of unique reads is: {num_unique}\n")
+    STATS_FILE.write(f"The number of dupe reads is: {num_dupes}\n")
+    STATS_FILE.close()
+    input_file.close()
+    output_file.close()
 
-
+args = get_args()
+outfile=args.output_file
+infile=args.input_file
+umifile=args.umi_file
 dedupe(infile, outfile, umifile)
+
 
 #N treat the same as a deletion mathematically
