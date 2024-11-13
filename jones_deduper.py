@@ -197,6 +197,3 @@ outfile=args.output_file
 infile=args.input_file
 umifile=args.umi_file
 dedupe(infile, outfile, umifile)
-
-
-#N treat the same as a deletion mathematically

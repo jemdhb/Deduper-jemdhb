@@ -154,21 +154,31 @@ add -1
 
 ##### Using no regex
 
+Going though the stand building the numbers and modifications as you go. Use a
+dictionary to store what modifications are in our string. Iterate through the 
+dictionary with case-statements to adjust the position
+
 ##### Using regex
 
 ```bash
 matches = re.findall(r'(\d+)([A-Z]{1})', cigar_string)
 ```
+Iterate over this list of tuples with case-statements to adjust the position.
+I realized the regex solution was much cleaner and switched my code over to this
 
-Compared with others and realized I over accounted for insertions
+##### Over accounted for insertions
+
+Compared with others and realized I over accounted for insertions I was adjusting
+the position `+` for insertions when I should have been doing nothing.
 
 ### Other misc. errors
 
-- Wrote it out and realized that was using wrong bit for the strand
+- Was using the wrong bit (4) instead of 16
 
-- got rid of int type cast for chromosome
+- Type casting the chromosome to an int caused issues for the scaffolds at the
+end of the large test file. Removing this was simple
 
 ### Other misc. additions
 
-added in the statistics that are asked for in the survey
-
+- Added in the statistics that are asked for in the survey. Some issues with
+counter logic that were quickly resolved.
