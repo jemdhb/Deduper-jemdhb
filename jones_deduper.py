@@ -243,7 +243,18 @@ def UMI_correction(UMI,ALL_UMIS):
     if unique_match:
         return best_umi
     return -1
+#FROM BIOINFO.PY
+def convert_phred(letter: str) -> int:
+    '''Converts a single character into a phred score'''
+    return ord(letter)-33
 
+def qual_score(phred_score: str) -> float:
+    """Convert a phred33 encoded string to a list of quality values 
+    then compute the average of those values"""
+    scores=[]
+    for item in phred_score:
+        scores.append(convert_phred(item))
+    return sum(scores)/len(scores)
 args = get_args()
 outfile=args.output_file
 infile=args.input_file
