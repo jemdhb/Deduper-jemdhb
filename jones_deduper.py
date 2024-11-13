@@ -13,6 +13,7 @@ def get_args():
     parser.add_argument("-u", "--umi_file",
                      help="Path to file containing all possible valid UMIs.",
                      required=True, default="STL96.txt",type=str)
+    parser.add_argument("-c","--correction",help="perform umi correction",type=bool)
     return parser.parse_args()
 
 def get_umi_and_chrom(line: str)->tuple:
@@ -36,7 +37,7 @@ def fix_softclipping(cigar_string:str, start_position:int, plus_strand=True)->in
         plus_strand (bool, optional): Determines which clipping function to use.
 
     Returns:
-        int: _description_
+        int: return adjusted position
     """
     #plus strand with left softclipping
     if plus_strand and cigar_string.split('S')[0].isdigit():
@@ -48,9 +49,7 @@ def fix_softclipping(cigar_string:str, start_position:int, plus_strand=True)->in
         return start_position
     #minus strand
     else:
-        return fix_minus_softclipping(cigar_string, start_position)           
-    
-        
+        return fix_minus_softclipping(cigar_string, start_position)               
 
 def fix_minus_softclipping(cigar_string:str, start_position:int)->int:
     """Fix softclipping on the minus strand
@@ -94,7 +93,7 @@ def determine_strand(bit_flag:int)->bool:
     return False
     #True if positive, False if negative strand
 
-def dedupe(input_file, output_file, umi_file):
+def dedupe(input_file, output_file, umi_file, umi_correction=False):
     """given and input and umi file, find and remove PCR duplicates
 
     Args:
@@ -107,8 +106,14 @@ def dedupe(input_file, output_file, umi_file):
     header_lines=0
     num_dupes=0
     num_unique=0
+
+    #new stats for fixing bad umis
+    number_of_umis_corrected=0
+    number_of_umis_uncorrected=0
+
+
     #so we dont print the first line as a new chromosome
-    chrom="1"
+    chrom="0"
     input_file=open(input_file,"r")
     output_file=open(output_file,"w")
     STATS_FILE=open(outfile[:outfile.rfind(".")]+"_stats.txt","w")
@@ -139,12 +144,24 @@ def dedupe(input_file, output_file, umi_file):
         #if unknown UMI, trash
         if curr_UMI not in all_umis:
             wrong_UMIS+=1
-            continue
+            if umi_correction:
+                 corrected_umi=UMI_correction(curr_UMI,all_umis)
+                 if corrected_umi==-1:
+                      #no good correction
+                      number_of_umis_uncorrected+=1
+                      continue
+                 else:
+                      number_of_umis_corrected+=1
+                      curr_UMI=corrected_umi
+            #were not correcting UMIS, discard
+            else:
+                 continue
 
         #if you have to update anything, clear the positions
         if curr_chrom!=chrom:
             #CHROMOSOME STRATS
-            STATS_FILE.write(f"{chrom}\t{num_chrom}\n")
+            if chrom!="0":
+                STATS_FILE.write(f"{chrom}\t{num_chrom}\n")
             num_chrom=0
             chrom=curr_chrom
             plus_position_set=set()
@@ -182,19 +199,58 @@ def dedupe(input_file, output_file, umi_file):
                 #discard read, its a dupe   
                 pass
     #STATS
+    STATS_FILE.write(f"{chrom}\t{num_chrom}\n")
     STATS_FILE.write(f"The number of header lines is: {header_lines}\n")
     STATS_FILE.write(f"The number of wrong UMIS is: {wrong_UMIS}\n")
     STATS_FILE.write(f"The number of unique reads is: {num_unique}\n")
     STATS_FILE.write(f"The number of dupe reads is: {num_dupes}\n")
+    if umi_correction:
+        STATS_FILE.write(f"Extra Credit: UMI Correction\nThe number of UMI corrected reads is: {number_of_umis_corrected}\n")
+        STATS_FILE.write(f"The number unknown UMIS that could not be corrected is: {number_of_umis_uncorrected}\n")
+
+
     STATS_FILE.close()
     input_file.close()
     output_file.close()
+
+def UMI_correction(UMI,ALL_UMIS):
+    """correct unknown UMIS according to the lowest hamming distance. If there are
+    multiple best hits, return -1 because we are not confident which UMI to correct to
+
+    Args:
+        UMI (str): unknown umi to correct
+
+    Returns:
+        variable: return a corrected UMI if successful, -1 if not 
+    """
+    best_umi=""
+    #chose some long 
+    best_ham_score=len(UMI)
+    unique_match=True
+    for known_umi in ALL_UMIS:
+        if known_umi=="": continue
+        current_ham_score=sum(c1 != c2 for c1, c2 in zip(known_umi, UMI))
+        if current_ham_score==best_ham_score:
+             unique_match=False
+             best_umi=known_umi
+             best_ham_score=current_ham_score
+        elif current_ham_score < best_ham_score:
+             unique_match=True
+             best_umi=known_umi
+             best_ham_score=current_ham_score
+        else:
+             pass
+    if unique_match:
+        return best_umi
+    return -1
 
 args = get_args()
 outfile=args.output_file
 infile=args.input_file
 umifile=args.umi_file
-dedupe(infile, outfile, umifile)
+correction=args.correction
+
+dedupe(infile, outfile, umifile, umi_correction=correction)
 
 
 #N treat the same as a deletion mathematically
