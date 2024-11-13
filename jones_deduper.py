@@ -141,9 +141,10 @@ def dedupe(input_file, output_file, umi_file, umi_correction=False):
         curr_UMI, curr_chrom = get_umi_and_chrom(line)
         plus_strand=determine_strand(curr_bit_flag)
 
-        #if unknown UMI, trash
+        #if unknown UMI
         if curr_UMI not in all_umis:
             wrong_UMIS+=1
+            #if correction specified, attempt umi recovery
             if umi_correction:
                  corrected_umi=UMI_correction(curr_UMI,all_umis)
                  if corrected_umi==-1:
@@ -153,7 +154,7 @@ def dedupe(input_file, output_file, umi_file, umi_correction=False):
                  else:
                       number_of_umis_corrected+=1
                       curr_UMI=corrected_umi
-            #were not correcting UMIS, discard
+            #if we're not correcting UMIS, discard
             else:
                  continue
 
