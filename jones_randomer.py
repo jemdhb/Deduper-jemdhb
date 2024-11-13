@@ -4,13 +4,13 @@ import argparse
 
 def get_args():
     parser = argparse.ArgumentParser(description="Using an input sam and UMI file, remove PCR duplicates writing them to a new output sam file.")
-    parser.add_argument("-i", "--input_file",
+    parser.add_argument("-f", "--file",
                      help="Path to input sam file.",
                      required=True, type=str)
-    parser.add_argument("-o", "--output_file",
+    parser.add_argument("-o", "--outfile",
                      help="Path to output sam file with our PCR duplicates removed.",
                      required=True, type=str)
-    parser.add_argument("-u", "--umi_file",
+    parser.add_argument("-u", "--umi",
                      help="Path to file containing all possible valid UMIs.",
                      required=False, default=None,type=str)
     parser.add_argument("-c","--correction",help="perform umi correction",type=bool)
@@ -277,9 +277,9 @@ def validate_base_seq(seq,RNAflag=False)->bool:
     return set(seq)<=(set(RNA_bases) if RNAflag else set(DNA_bases))
 
 args = get_args()
-outfile=args.output_file
-infile=args.input_file
-umifile=args.umi_file
+outfile=args.outfile
+infile=args.file
+umifile=args.umi
 correction=args.correction
      
 
