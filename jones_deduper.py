@@ -108,7 +108,7 @@ def dedupe(input_file, output_file, umi_file):
     num_dupes=0
     num_unique=0
     #so we dont print the first line as a new chromosome
-    chrom="1"
+    chrom="0"
     input_file=open(input_file,"r")
     output_file=open(output_file,"w")
     STATS_FILE=open(outfile[:outfile.rfind(".")]+"_stats.txt","w")
@@ -144,7 +144,8 @@ def dedupe(input_file, output_file, umi_file):
         #if you have to update anything, clear the positions
         if curr_chrom!=chrom:
             #CHROMOSOME STRATS
-            STATS_FILE.write(f"{chrom}\t{num_chrom}\n")
+            if chrom!="0":
+                STATS_FILE.write(f"{chrom}\t{num_chrom}\n")
             num_chrom=0
             chrom=curr_chrom
             plus_position_set=set()
@@ -182,6 +183,7 @@ def dedupe(input_file, output_file, umi_file):
                 #discard read, its a dupe   
                 pass
     #STATS
+    STATS_FILE.write(f"{chrom}\t{num_chrom}\n")
     STATS_FILE.write(f"The number of header lines is: {header_lines}\n")
     STATS_FILE.write(f"The number of wrong UMIS is: {wrong_UMIS}\n")
     STATS_FILE.write(f"The number of unique reads is: {num_unique}\n")
