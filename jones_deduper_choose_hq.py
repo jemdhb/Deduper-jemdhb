@@ -189,6 +189,7 @@ def dedupe(input_file, output_file, umi_file, umi_correction=False):
             #if this read is hq than the old one
             elif key in plus_position_dict.keys() and plus_position_dict[key][0]<curr_qs:
                 plus_position_dict[key]=(curr_qs,line)
+                num_dupes+=1
             else:
                 num_dupes+=1
                 #discard read, its a dupe
@@ -206,13 +207,18 @@ def dedupe(input_file, output_file, umi_file, umi_correction=False):
             #if read is hq than the previous
             elif key in minus_position_dict.keys() and minus_position_dict[key][0]<curr_qs:
                 minus_position_dict[key]=(curr_qs,line)
+                num_dupes+=1
         
             else:
                 num_dupes+=1
                 #discard read, its a dupe   
-                pass
+                continue
     #STATS
     STATS_FILE.write(f"{chrom}\t{num_chrom}\n")
+    for item in plus_position_dict.values():
+            output_file.write(item[1])
+    for item in minus_position_dict.values():
+            output_file.write(item[1])
     STATS_FILE.write(f"The number of header lines is: {header_lines}\n")
     STATS_FILE.write(f"The number of wrong UMIS is: {wrong_UMIS}\n")
     STATS_FILE.write(f"The number of unique reads is: {num_unique}\n")
