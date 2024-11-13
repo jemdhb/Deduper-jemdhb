@@ -221,27 +221,35 @@ def UMI_correction(UMI,ALL_UMIS):
         UMI (str): unknown umi to correct
 
     Returns:
-        variable: return a corrected UMI if successful, -1 if not 
+        variable: return a corrected UMI (str) if successful, -1 if not 
     """
     best_umi=""
-    #chose some long 
+    #max hamming distance is every bp is different 
     best_ham_score=len(UMI)
+    #used to track if this score is novel
     unique_match=True
     for known_umi in ALL_UMIS:
-        if known_umi=="": continue
+        #nothing to evaluate in this case
+        if known_umi=="": 
+             continue
+        #calculate hamming distance
         current_ham_score=sum(c1 != c2 for c1, c2 in zip(known_umi, UMI))
+        #if our top ham score is no longer unique
         if current_ham_score==best_ham_score:
+             #update flags and variables
              unique_match=False
              best_umi=known_umi
              best_ham_score=current_ham_score
+        #if we have found a new best match
         elif current_ham_score < best_ham_score:
+             #update flags and variables
              unique_match=True
              best_umi=known_umi
              best_ham_score=current_ham_score
-        else:
-             pass
+    #only return match if its novel
     if unique_match:
         return best_umi
+    #otherwise return fail
     return -1
 #FROM BIOINFO.PY
 def convert_phred(letter: str) -> int:

@@ -14,6 +14,8 @@ def get_args():
                      help="Path to file containing all possible valid UMIs.",
                      required=False, default=None,type=str)
     parser.add_argument("-c","--correction",help="perform umi correction",type=bool)
+    parser.add_argument("-r", "--randomer_length",required=False, default=8, type=int,
+                        help="Set expected UMI length. Only required in the case of randomers")
     return parser.parse_args()
 
 def get_umi_and_chrom(line: str)->tuple:
@@ -161,7 +163,7 @@ def dedupe(input_file, output_file, umi_file, umi_correction=False):
                  continue
         #if we are dealing with randomers, trash any umis with Ns
         elif all_umis==None:
-            if validate_base_seq(curr_UMI) and len(curr_UMI)==8:
+            if validate_base_seq(curr_UMI) and len(curr_UMI)==args.randomer_length:
                 pass
             else:
                 continue
