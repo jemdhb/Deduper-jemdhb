@@ -4,7 +4,7 @@ import argparse
 
 def get_args():
     parser = argparse.ArgumentParser(description="Using an input sam and UMI file, remove PCR duplicates writing them to a new output sam file.")
-    parser.add_argument("-i", "--input_file",
+    parser.add_argument("-f", "--input_file",
                      help="Path to input sam file.",
                      required=True, type=str)
     parser.add_argument("-o", "--output_file",
