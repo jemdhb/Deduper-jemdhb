@@ -161,7 +161,7 @@ def dedupe(input_file, output_file, umi_file, umi_correction=False):
                  continue
         #if we are dealing with randomers, trash any umis with Ns
         elif all_umis==None:
-            if validate_base_seq(curr_UMI):
+            if validate_base_seq(curr_UMI) and len(curr_UMI)==8:
                 pass
             else:
                 continue
